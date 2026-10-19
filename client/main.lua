@@ -246,6 +246,28 @@ RegisterNUICallback('donate', function(payload, cb)
     cb(res or { success = false, reason = 'Sunucudan yanıt yok.' })
 end)
 
+-- NUI: polis cezaları (loe_jobcreator): hepsi, ödenenler de; ödenmemiş birini bankadan öde  { id = number }
+local function finesUnavailable(cb)
+    if GetResourceState('loe_jobcreator') == 'started' then return false end
+    cb({ success = false, reason = 'Ceza servisi şu anda kullanılamıyor.' })
+    return true
+end
+
+RegisterNUICallback('fines', function(_, cb)
+    if finesUnavailable(cb) then return end
+    local res = lib.callback.await('loe:fines:mine', false)
+    cb(type(res) == 'table' and { success = res.ok == true, fines = res.fines or {}, reason = res.text } or { success = false, reason = 'Sunucudan yanıt yok.' })
+end)
+
+RegisterNUICallback('payFine', function(payload, cb)
+    if finesUnavailable(cb) then return end
+    local id = tonumber(type(payload) == 'table' and payload.id or nil)
+    local res = lib.callback.await('loe:fines:pay', false, id)
+    -- Ödendiyse panelin bakiyesi de tazelensin.
+    local data = (type(res) == 'table' and res.ok) and lib.callback.await('loe_bank:getData', false) or nil
+    cb({ success = type(res) == 'table' and res.ok == true, reason = type(res) == 'table' and res.text or 'Sunucudan yanıt yok.', data = data })
+end)
+
 ---------------------------------------------------------------------------
 -- DIŞARIDAN BAKİYE DEĞİŞİMİ (ör. sana havale gelmesi) -> paneli tazele
 ---------------------------------------------------------------------------

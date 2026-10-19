@@ -72,6 +72,7 @@
         { id: 'withdraw', label: 'Para Çek',     icon: I.withdraw },
         { id: 'transfer', label: 'Havale / EFT', icon: I.send },
         { id: 'donate',   label: 'Bağış',        icon: I.heart },
+        { id: 'fines',    label: 'Cezalar',      icon: I.doc },
         { id: 'bills',    label: 'Faturalar',    icon: I.doc,   soon: true },
         { id: 'invest',   label: 'Yatırımlar',   icon: I.chart, soon: true },
         { id: 'loan',     label: 'Kredi',        icon: I.stack, soon: true },
@@ -167,7 +168,7 @@
         });
     }
 
-    const VIEWS = ['overview', 'deposit', 'withdraw', 'transfer', 'donate'];
+    const VIEWS = ['overview', 'deposit', 'withdraw', 'transfer', 'donate', 'fines'];
     function setView(id) {
         if (!MENU.some(m => m.id === id && !m.soon)) return;
         state.view = id;
@@ -175,6 +176,7 @@
         renderMenu();
         renderForms();
         mainEl.scrollTop = 0;
+        if (id === 'fines') loadFines();
         const focusMap = { deposit: 'dep-amount', withdraw: 'wd-amount', transfer: 'tr-account', donate: 'don-amount' };
         if (focusMap[id]) { const f = $(focusMap[id]); if (f) setTimeout(() => f.focus(), 30); }
     }
@@ -443,6 +445,46 @@
     }
 
     let toastTimer;
+    /* ------------------------------------------------------------- cezalar */
+    // Polisin kestiği cezalar (loe_jobcreator): ödenmemişler "Öde" ile bankadan ödenir; ödenenler açıklamalarıyla "Ödendi" olarak kalır.
+    async function loadFines() {
+        const list = $('fines-list');
+        const res = await post('fines');
+        list.innerHTML = '';
+        if (!res || !res.success) {
+            list.innerHTML = `<div class="tx-empty">${esc((res && res.reason) || 'Cezalar alınamadı.')}</div>`;
+            return;
+        }
+        const fines = Array.isArray(res.fines) ? res.fines : [];
+        if (fines.length === 0) { list.innerHTML = '<div class="tx-empty">Hiç cezan yok.</div>'; return; }
+        fines.forEach(f => {
+            const what = (f.offences || []).map(o => (o.code ? o.code + ' ' : '') + (o.label || '')).join(', ');
+            const row = document.createElement('div');
+            row.className = 'tx-row fine-row' + (f.paid ? ' paid' : '');
+            row.style.setProperty('--cat', f.paid ? '#34e07f' : '#ff2e97');
+            row.innerHTML =
+                `<span class="ti">${svg(I.doc)}</span>` +
+                `<div class="tinfo"><b>${esc(String(f.job || '').toUpperCase())} · #${esc(f.id)}${f.callsign ? ' · ' + esc(f.callsign) : ''}</b>` +
+                `<small class="wrap">${esc(what)}</small>` +
+                (f.note ? `<small class="wrap note">${esc(f.note)}</small>` : '') + `</div>` +
+                `<div class="tright"><div class="amt ${f.paid ? 'pos' : 'neg'}">${esc(money(f.amount))}</div>` +
+                `<div class="when">${esc(fmtWhen(f.at))}</div>` +
+                (f.paid ? `<div class="fine-paid">Ödendi${f.paidAt ? ' · ' + esc(fmtWhen(f.paidAt)) : ''}</div>`
+                        : `<button class="op-submit fine-pay" type="button">Öde</button>`) +
+                `</div>`;
+            const btn = row.querySelector('.fine-pay');
+            if (btn) btn.addEventListener('click', async () => {
+                btn.disabled = true;
+                const r = await post('payFine', { id: f.id });
+                if (!r || !r.success) { btn.disabled = false; toast('error', (r && r.reason) || 'Ödenemedi.'); return; }
+                toast('success', r.reason || 'Ceza ödendi.');
+                if (r.data && r.data.success) { applyResult(r.data); renderAll(); }
+                loadFines();
+            });
+            list.appendChild(row);
+        });
+    }
+
     function toast(kind, text) {
         clearTimeout(toastTimer);
         toastEl.className = 'toast ' + kind;
