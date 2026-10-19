@@ -20,6 +20,32 @@ local refreshLock  = false
 local pedReported  = false   -- ilk başarılı spawn'da konsola bir kez bilgi bas
 
 ---------------------------------------------------------------------------
+-- loe_target (bakılan hedef): açıkken E ipucu ekran ortasındaki noktadan gelir ve E yalnızca ped'e
+-- BAKARKEN çalışır; kapalıyken eski davranış (mesafe + TextUI).
+---------------------------------------------------------------------------
+local focusedEntity = nil
+
+local function targetOn()
+    return GetResourceState('loe_target') == 'started'
+end
+
+AddEventHandler('loe_target:focus', function(_, entity)
+    focusedEntity = entity
+end)
+
+local function registerTarget()
+    if not (pedHandle and DoesEntityExist(pedHandle) and targetOn()) then return end
+    exports.loe_target:addEntity(pedHandle, {
+        key      = Config.interaction.keyLabel,
+        title    = 'Bankacı',
+        hint     = 'Bankacılık işlemleri',
+        distance = Config.interaction.distance,
+    })
+end
+
+AddEventHandler('loe_target:ready', registerTarget)
+
+---------------------------------------------------------------------------
 -- PED
 ---------------------------------------------------------------------------
 --- Verilen model listesinden ilk yüklenebileni döner (hash) — yoksa nil.
@@ -91,6 +117,7 @@ local function spawnPed()
     SetModelAsNoLongerNeeded(hash)
 
     pedHandle = ped
+    registerTarget()
 
     if Config.debug or not pedReported then
         pedReported = true
@@ -256,8 +283,16 @@ CreateThread(function()
 
         if dist < 15.0 then
             sleep = 0
-            if dist <= interactDist and not bankOpen then
-                if not textUIShown then
+            local useTarget = targetOn()
+            local canUse
+            if useTarget then
+                canUse = pedHandle ~= nil and focusedEntity == pedHandle
+                hideTextUI()
+            else
+                canUse = dist <= interactDist
+            end
+            if canUse and not bankOpen then
+                if not useTarget and not textUIShown then
                     lib.showTextUI(
                         ('[%s] %s'):format(Config.interaction.keyLabel, Config.interaction.helpText),
                         { position = 'left-center' }

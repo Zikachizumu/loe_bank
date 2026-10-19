@@ -28,7 +28,6 @@
     const txPanel     = $('tx-panel');
     const txListEl    = $('tx-list');
     const txEmptyEl   = $('tx-empty');
-    const clockEl     = $('stage-clock');
     const toastEl     = $('toast');
     const eyeToggle   = $('eye-toggle');
     const eyeLabel    = $('eye-label');
@@ -452,11 +451,6 @@
         toastTimer = setTimeout(() => toastEl.classList.add('hidden'), 2800);
     }
 
-    function tickClock() {
-        const d = new Date();
-        clockEl.textContent = `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]} · ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-    }
-    setInterval(tickClock, 15000);
 
     /* -------------------------------------------------------- open/close */
     function openBank(msg) {
@@ -478,7 +472,6 @@
         ['dep-amount', 'wd-amount', 'tr-amount', 'tr-account', 'tr-note', 'don-amount'].forEach(id => { $(id).value = ''; });
         ['dep-hint', 'wd-hint', 'tr-hint', 'don-hint'].forEach(id => setHint($(id), '', ''));
 
-        tickClock();
         renderMenu();
         setView('overview');
         renderAll();
